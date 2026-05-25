@@ -9,23 +9,30 @@ st.set_page_config(
     layout="wide"
 )
 
-# Database connection function
-@st.cache_resource
+# Database connection function - create connection only when needed
 def get_connection():
-    return sql.connect(
-        server_hostname=os.getenv("DATABRICKS_SERVER_HOSTNAME"),
-        http_path=os.getenv("DATABRICKS_HTTP_PATH"),
-        access_token=os.getenv("DATABRICKS_TOKEN")
-    )
+    try:
+        return sql.connect(
+            server_hostname=os.getenv("DATABRICKS_SERVER_HOSTNAME"),
+            http_path=os.getenv("DATABRICKS_HTTP_PATH"),
+            access_token=os.getenv("DATABRICKS_TOKEN")
+        )
+    except Exception as e:
+        st.error(f"Database connection error: {str(e)}")
+        return None
 
 # Function to insert project summary
 def insert_project_summary(project_id, project_name, division, 
                           project_manager, customer_name, customer_country):
     try:
-        with get_connection() as connection:
+        connection = get_connection()
+        if connection is None:
+            return False, "Failed to connect to database"
+            
+        with connection:
             with connection.cursor() as cursor:
                 cursor.execute("""
-                    INSERT INTO projects_summary 
+                    INSERT INTO default.projects_summary 
                     (project_id, project_name, division, project_manager_name, 
                      customer_name, customer_country)
                     VALUES (?, ?, ?, ?, ?, ?)
@@ -39,10 +46,14 @@ def insert_project_summary(project_id, project_name, division,
 def insert_project_financials(project_id, sales_volume, direct_cost, 
                               indirect_cost, provisions):
     try:
-        with get_connection() as connection:
+        connection = get_connection()
+        if connection is None:
+            return False, "Failed to connect to database"
+            
+        with connection:
             with connection.cursor() as cursor:
                 cursor.execute("""
-                    INSERT INTO project_financials 
+                    INSERT INTO default.project_financials 
                     (project_id, sales_volume, direct_cost, indirect_cost, provisions)
                     VALUES (?, ?, ?, ?, ?)
                 """, (project_id, float(sales_volume), float(direct_cost), 
