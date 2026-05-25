@@ -1,0 +1,6 @@
+command: ["streamlit", "run", "app.py", "--server.port=8080"]
+
+resources:
+  - name: default-sql-warehouse
+    warehouse:
+      id: "dbc-a7483a22-ecaf.cloud.databricks.com"
