@@ -1,5 +1,6 @@
 import streamlit as st
-from databricks import sql
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.core import databricks_cli
 import os
 
 # Page configuration
@@ -9,58 +10,53 @@ st.set_page_config(
     layout="wide"
 )
 
-# Database connection function - create connection only when needed
-def get_connection():
+# Get Databricks client (uses OAuth automatically in Apps)
+@st.cache_resource
+def get_workspace_client():
+    return WorkspaceClient()
+
+# Database connection function using SQL Statement Execution API
+def execute_sql(query, parameters=None):
     try:
-        return sql.connect(
-            server_hostname=os.getenv("DATABRICKS_SERVER_HOSTNAME"),
-            http_path=os.getenv("DATABRICKS_HTTP_PATH"),
-            access_token=os.getenv("DATABRICKS_TOKEN")
+        w = get_workspace_client()
+        warehouse_id = "3b16ccf20d74f512"
+        
+        # Execute SQL using warehouse
+        result = w.statement_execution.execute_statement(
+            warehouse_id=warehouse_id,
+            statement=query,
+            wait_timeout="30s"
         )
+        
+        return True, "Success", result
     except Exception as e:
-        st.error(f"Database connection error: {str(e)}")
-        return None
+        return False, f"Error: {str(e)}", None
 
 # Function to insert project summary
 def insert_project_summary(project_id, project_name, division, 
                           project_manager, customer_name, customer_country):
-    try:
-        connection = get_connection()
-        if connection is None:
-            return False, "Failed to connect to database"
-            
-        with connection:
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO default.projects_summary 
-                    (project_id, project_name, division, project_manager_name, 
-                     customer_name, customer_country)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (project_id, project_name, division, project_manager, 
-                      customer_name, customer_country))
-        return True, "Project Summary submitted successfully!"
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    query = f"""
+        INSERT INTO default.projects_summary 
+        (project_id, project_name, division, project_manager_name, 
+         customer_name, customer_country)
+        VALUES ('{project_id}', '{project_name}', '{division}', '{project_manager}', 
+                '{customer_name}', '{customer_country}')
+    """
+    
+    success, message, _ = execute_sql(query)
+    return success, message
 
 # Function to insert project financials
 def insert_project_financials(project_id, sales_volume, direct_cost, 
                               indirect_cost, provisions):
-    try:
-        connection = get_connection()
-        if connection is None:
-            return False, "Failed to connect to database"
-            
-        with connection:
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO default.project_financials 
-                    (project_id, sales_volume, direct_cost, indirect_cost, provisions)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (project_id, float(sales_volume), float(direct_cost), 
-                      float(indirect_cost), float(provisions)))
-        return True, "Project Financials submitted successfully!"
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    query = f"""
+        INSERT INTO default.project_financials 
+        (project_id, sales_volume, direct_cost, indirect_cost, provisions)
+        VALUES ('{project_id}', {sales_volume}, {direct_cost}, {indirect_cost}, {provisions})
+    """
+    
+    success, message, _ = execute_sql(query)
+    return success, message
 
 # Main app
 st.title("📊 Project Data Entry System")
